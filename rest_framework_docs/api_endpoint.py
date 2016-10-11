@@ -19,12 +19,10 @@ class ApiEndpoint(object):
         self.drf_router = drf_router
         self.pattern = pattern
         self.callback = pattern.callback
-        # self.name = pattern.name
         self.docstring = self.__get_docstring__()
-        self.name_parent = simplify_regex(parent_regex).strip('/') if parent_regex else None
-        self.path = self.__get_path__(parent_regex)
+        self.name_parent = namespace
+        self.path = simplify_regex(parent_pattern)
         self.allowed_methods = self.__get_allowed_methods__()
-        # self.view_name = pattern.callback.__name__
         self.errors = None
         self.serializer_class = self.__get_serializer_class__()
         if self.serializer_class:
@@ -33,18 +31,6 @@ class ApiEndpoint(object):
             self.fields_json = self.__get_serializer_fields_json__()
 
         self.permissions = self.__get_permissions_class__()
-
-    def __get_path__(self, parent_regex):
-        if parent_regex:
-            return "/{0}{1}".format(self.name_parent, simplify_regex(self.pattern.regex.pattern))
-        return simplify_regex(self.pattern.regex.pattern)
-
-    def is_method_allowed(self, callback_cls, method_name):
-        has_attr = hasattr(callback_cls, method_name)
-        viewset_method = (issubclass(callback_cls, ModelViewSet) and
-                          method_name in VIEWSET_METHODS.get(self.callback.suffix, []))
-
-        return has_attr or viewset_method
 
     def __get_allowed_methods__(self):
         viewset_methods = []

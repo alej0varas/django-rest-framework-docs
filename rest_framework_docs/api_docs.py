@@ -1,5 +1,6 @@
 from importlib import import_module
 from django.conf import settings
+from django.core.exceptions import ViewDoesNotExist
 from django.core.urlresolvers import RegexURLResolver, RegexURLPattern
 from django.utils.module_loading import import_string
 from rest_framework.views import APIView
@@ -29,6 +30,41 @@ class ApiDocumentation(object):
             elif isinstance(pattern, RegexURLPattern) and self._is_drf_view(pattern) and not self._is_format_endpoint(pattern):
                 api_endpoint = ApiEndpoint(pattern, parent_regex, self.drf_router)
                 self.endpoints.append(api_endpoint)
+
+    # Modified version of django-extensions `show_urls` command method
+    def extract_views_from_urlpatterns(self, urlpatterns, base='', namespace=None):
+        """Return all the views in a list of urlpatterns"""
+        views = []
+        for p in urlpatterns:
+            if isinstance(p, RegexURLPattern):
+                try:
+                    views.append((base + p.regex.pattern, p, namespace))
+                except ViewDoesNotExist:
+                    continue
+            elif isinstance(p, RegexURLResolver):
+                try:
+                    patterns = p.url_patterns
+                except ImportError:
+                    continue
+                if namespace and p.namespace:
+                    _namespace = '{0}:{1}'.format(namespace, p.namespace)
+                else:
+                    _namespace = (p.namespace or namespace)
+                views.extend(self.extract_views_from_urlpatterns(patterns, base + p.regex.pattern, namespace=_namespace))
+            elif hasattr(p, '_get_callback'):
+                try:
+                    views.append((base + p.regex.pattern, p, namespace))
+                except ViewDoesNotExist:
+                    continue
+            elif hasattr(p, 'url_patterns') or hasattr(p, '_get_url_patterns'):
+                try:
+                    patterns = p.url_patterns
+                except ImportError:
+                    continue
+                views.extend(self.extract_views_from_urlpatterns(patterns, base + p.regex.pattern, namespace=namespace))
+            else:
+                raise TypeError("%s does not appear to be a urlpattern object" % p)
+        return views
 
     def _is_drf_view(self, pattern):
         """
